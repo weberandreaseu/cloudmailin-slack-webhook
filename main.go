@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 
 	"github.com/nlopes/slack"
 	"github.com/peterhellberg/cloudmailin"
@@ -69,4 +70,17 @@ func sendMessage(data *cloudmailin.Data) (string, string, error) {
 		Text:       data.Plain,
 	}
 	return api.PostMessage(slackChannel, slack.MsgOptionAttachments(attachment))
+}
+
+func parseFrom(sender string) (string, string) {
+	re := regexp.MustCompile(`^(?P<name>.*\S)?\s?<(?P<mail>\S+@\S+)>$`)
+	match := re.FindStringSubmatch(sender)
+	// check if name exists
+	if len(match) < 2 {
+		return "", ""
+	}
+	if len(match) == 2 {
+		return "", match[1]
+	}
+	return match[1], match[2]
 }
