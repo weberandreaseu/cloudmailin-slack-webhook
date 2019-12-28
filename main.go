@@ -44,26 +44,29 @@ func incomingMail(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Only POST requests are allowed using cloudmailin json format")
 		return
 	}
+	// decode email content from request body
 	defer r.Body.Close()
-	if msg, err := cloudmailin.Decode(r.Body); err == nil {
-		sendMessage(&msg)
-	} else {
-		fmt.Fprintf(w, "Failed to parse request: %s", err)
+	msg, err := cloudmailin.Decode(r.Body)
+	if err != nil {
+		fmt.Fprintf(w, "Failed to parse email: %s", err)
 		w.WriteHeader(400)
+	}
+	// send message to slack channel
+	channelID, timestamp, err := sendMessage(&msg)
+	if err != nil {
+		fmt.Fprintf(w, "Failed to send message to channel %s: %s", slackChannel, err)
+		w.WriteHeader(500)
+	} else {
+		log.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
 	}
 }
 
-func sendMessage(data *cloudmailin.Data) {
+func sendMessage(data *cloudmailin.Data) (string, string, error) {
 	api := slack.New(slackToken)
 	attachment := slack.Attachment{
 		AuthorName: data.Headers.From,
 		Title:      data.Headers.Subject,
 		Text:       data.Plain,
 	}
-	channelID, timestamp, err := api.PostMessage(slackChannel, slack.MsgOptionAttachments(attachment))
-	if err != nil {
-		fmt.Printf("%s\n", err)
-		return
-	}
-	fmt.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
+	return api.PostMessage(slackChannel, slack.MsgOptionAttachments(attachment))
 }
